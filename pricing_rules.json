@@ -1,0 +1,254 @@
+{
+  "莱钢": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 70
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 90
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    }
+  },
+"永锋": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 70
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 90
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    }
+  },
+"石横": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 70
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E18": 30,
+          "HRB400E20": 30,
+          "HRB400E25": 30,
+          "HRB400E14": 60,
+          "HRB400E12": 90
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 30,
+          "HRB400E6": 350
+        }
+      }
+    }
+  },
+"中新": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E18",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E20": 30,
+          "HRB400E22": 30,
+          "HRB400E25": 50,
+          "HRB400E14": 50,
+          "HRB400E12": 60
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 220
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E18",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E20": 30,
+          "HRB400E22": 30,
+          "HRB400E25": 50,
+          "HRB400E14": 60,
+          "HRB400E12": 120
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 200
+        }
+      }
+    }
+  },
+"徐钢": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E18",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E20": 30,
+          "HRB400E22": 30,
+          "HRB400E25": 50,
+          "HRB400E14": 50,
+          "HRB400E12": 60
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 300
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E18",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E20": 30,
+          "HRB400E22": 30,
+          "HRB400E25": 50,
+          "HRB400E14": 60,
+          "HRB400E12": 120
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 200
+        }
+      }
+    }
+  },
+"河南闽源": {
+    "到货价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E22",
+        "additions": {
+          "HRB400E16": 50,
+          "HRB400E18": 50,
+          "HRB400E20": 50,
+          "HRB400E25": 50,
+          "HRB400E14": 80,
+          "HRB400E12": 150
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 400
+        }
+      }
+    },
+    "网价": {
+      "螺纹钢": {
+        "base_spec": "HRB400E18",
+        "additions": {
+          "HRB400E16": 30,
+          "HRB400E20": 30,
+          "HRB400E22": 30,
+          "HRB400E25": 50,
+          "HRB400E14": 60,
+          "HRB400E12": 120
+        }
+      },
+      "盘螺": {
+        "base_spec": "HRB400E10",
+        "additions": {
+          "HRB400E8": 0,
+          "HRB400E6": 400
+        }
+      }
+    }
+  }
+}
