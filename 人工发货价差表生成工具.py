@@ -59,7 +59,7 @@ def calculate_price_diff(steel_mill, steel_type, spec, length, base_net_price, b
     try:
         price_rules = pricing_rules[steel_mill][steel_type]
         if '网价' not in price_rules or '到货价' not in price_rules:
-            return 0
+            return 0, 0, 0
         
         net_addition = price_rules['网价'].get(spec, 0)
         arrival_addition = price_rules['到货价'].get(spec, 0)
@@ -75,9 +75,9 @@ def calculate_price_diff(steel_mill, steel_type, spec, length, base_net_price, b
                      'HRB400E20', 'HRB400E22', 'HRB400E25']):
             net_price += 30
         
-        return net_price - arrival_price
+        return net_price, arrival_price, net_price - arrival_price
     except KeyError:
-        return 0
+        return 0, 0, 0
 
 # ---------------------- 辅助计算模块 ----------------------
 def calculate_ship_pieces(tonnage, weight, tolerance=1.0):
@@ -148,7 +148,9 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '规格排序': int(''.join(filter(str.isdigit, spec))) if any(c.isdigit() for c in spec) else 0,
                     '长度': '',
                     '钢厂': '无库存',  # 标记无库存
-                    '网价-到货价(元/吨)': 0,
+                    '网价': 0,
+                    '到货价': 0,
+                    '价差（元/吨）': 0,
                     '件重(吨)': 0,
                     '计划吨位': round(tonnage, 2),
                     '发货件数': 0,
@@ -176,7 +178,7 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                 base_prices = base_prices_dict[steel_mill][steel_type]
                 
                 for length in lengths:
-                    price_diff = calculate_price_diff(
+                    net_price, arrival_price, price_diff = calculate_price_diff(
                         steel_mill, steel_type, spec, length,
                         base_prices['网价'], base_prices['到货价'],
                         pricing_rules,
@@ -206,7 +208,9 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                         '规格排序': spec_num,
                         '长度': length,
                         '钢厂': steel_mill,
-                        '网价-到货价(元/吨)': price_diff,
+                        '网价': net_price,
+                        '到货价': arrival_price,
+                        '价差（元/吨）': price_diff,
                         '件重(吨)': round(weight, 3),
                         '计划吨位': round(tonnage, 2),
                         '发货件数': ship_pieces,
@@ -226,7 +230,9 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '规格排序': int(''.join(filter(str.isdigit, spec))) if any(c.isdigit() for c in spec) else 0,
                     '长度': '',
                     '钢厂': '无有效价差',  # 标记无有效价差
-                    '网价-到货价(元/吨)': 0,
+                    '网价': 0,
+                    '到货价': 0,
+                    '价差（元/吨）': 0,
                     '件重(吨)': 0,
                     '计划吨位': round(tonnage, 2),
                     '发货件数': 0,
@@ -244,12 +250,12 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
     
     # 按楼号升序，同一楼号内按规格升序，相同规格内按价差降序排序
     df = df.sort_values(
-        ['楼号', '规格排序', '网价-到货价(元/吨)'], 
+        ['楼号', '规格排序', '价差（元/吨）'], 
         ascending=[True, True, False]
     )
     
     # 按楼号和规格分组，标记每组中价差最高的行
-    df['is_max_diff'] = df.groupby(['楼号', '规格'])['网价-到货价(元/吨)'].transform(lambda x: x == x.max())
+    df['is_max_diff'] = df.groupby(['楼号', '规格'])['价差（元/吨）'].transform(lambda x: x == x.max())
     
     return df
 
@@ -258,8 +264,8 @@ def format_manual_table(df):
     if df.empty:
         return df
     
-    # 选择要显示的列，添加吨位偏差列
-    display_df = df[['楼号', '规格', '长度', '钢厂', '网价-到货价(元/吨)', 
+    # 选择要显示的列，添加网价、到货价列，修改价差列名
+    display_df = df[['楼号', '规格', '长度', '钢厂', '网价', '到货价', '价差（元/吨）', 
                     '件重(吨)', '计划吨位', '发货件数', '发货吨位', '吨位偏差', '总利润(元)']]
     
     # 创建样式器
@@ -294,7 +300,12 @@ def format_manual_table(df):
                 return "±0.00吨"
         
         # 应用格式化
-        styler = styler.format({'吨位偏差': format_deviation})
+        styler = styler.format({
+            '网价': '{:.2f}',
+            '到货价': '{:.2f}',
+            '价差（元/吨）': '{:.2f}',
+            '吨位偏差': format_deviation
+        })
         
         # 偏差为正（超额）显示红色，偏差为负（不足）显示蓝色，无偏差显示绿色
         def highlight_deviation(row):
@@ -354,11 +365,11 @@ def load_daily_base_prices(uploaded_file):
             steel_type = row['钢筋类型']
             if steel_type not in ['螺纹钢', '盘螺']:
                 continue
-            
             base_prices_dict[mill][steel_type] = {
                 '网价': row['网价基价'],
                 '到货价': row['到货价基价']
             }
+        
         return base_prices_dict
     except Exception as e:
         st.error(f"加载基价文件失败：{str(e)}")
@@ -422,6 +433,7 @@ def load_shipment_plan(uploaded_file):
             spec = row['规格型号']
             tonnage = float(row['所需吨位'])
             plan[building][spec] = tonnage
+        
         return plan
     except Exception as e:
         st.error(f"加载发货计划文件失败：{str(e)}")
@@ -438,10 +450,12 @@ def main():
         st.session_state.enable_12m_addition = True  # 默认启用12m加价
     if 'last_enable_state' not in st.session_state:
         st.session_state.last_enable_state = st.session_state.enable_12m_addition
+    
     if 'show_only_best' not in st.session_state:
         st.session_state.show_only_best = False  # 默认显示全部记录
     if 'last_show_state' not in st.session_state:
         st.session_state.last_show_state = st.session_state.show_only_best
+    
     if 'tonnage_tolerance' not in st.session_state:
         st.session_state.tonnage_tolerance = 1.0  # 默认允许1吨偏差
     if 'last_tolerance_state' not in st.session_state:
@@ -470,8 +484,7 @@ def main():
             **适用条件**：
             - **钢厂**：中新、徐钢、河南闽源
             - **长度**：12m
-            - **规格**：HRB400E12, HRB400E14, HRB400E16, HRB400E18, 
-                       HRB400E20, HRB400E22, HRB400E25
+            - **规格**：HRB400E12, HRB400E14, HRB400E16, HRB400E18, HRB400E20, HRB400E22, HRB400E25
             - **加价金额**：30元/吨
             
             **说明**：取消勾选将禁用上述加价规则
@@ -548,7 +561,7 @@ def main():
             
             # 筛选出每个规格中价差最高的记录用于汇总统计
             if not valid_table.empty:
-                idx = valid_table.groupby(['楼号', '规格'])['网价-到货价(元/吨)'].idxmax()
+                idx = valid_table.groupby(['楼号', '规格'])['价差（元/吨）'].idxmax()
                 summary_table = valid_table.loc[idx]
                 
                 # 计算计划与发货总量统计（仅基于价差最高的有效记录）
@@ -594,7 +607,7 @@ def main():
                 
                 # 只保留每个规格中价差最高的有效记录
                 if not valid_records.empty:
-                    best_idx = valid_records.groupby(['楼号', '规格'])['网价-到货价(元/吨)'].idxmax()
+                    best_idx = valid_records.groupby(['楼号', '规格'])['价差（元/吨）'].idxmax()
                     best_records = manual_table.loc[best_idx]
                 else:
                     best_records = pd.DataFrame()
@@ -604,7 +617,7 @@ def main():
                 
                 # 重新排序以保持一致性
                 display_table = display_table.sort_values(
-                    ['楼号', '规格排序', '网价-到货价(元/吨)'], 
+                    ['楼号', '规格排序', '价差（元/吨）'], 
                     ascending=[True, True, False]
                 )
             else:
@@ -636,34 +649,34 @@ def main():
                 st.success(f"所有可发规格总利润：¥{total_profit:,.2f}")
             else:
                 st.warning("没有可发规格的有效价差记录，无法计算总利润")
-            
     else:
         st.info("请上传所有必要的CSV文件（每日基价、可发规格、发货计划）")
-        with st.expander("查看文件格式要求及功能说明"):
-            st.markdown("""
-            ### 新功能：优化发货件数计算
-            - **功能**：实际发货吨位与计划吨位偏差不超过设置范围（默认为1吨）
-            - **设置**：在侧边栏"发货设置"中调整"允许吨位偏差范围"
-            - **逻辑**：
-              1. 计算基础件数（向下取整）和基础吨位
-              2. 如果基础件数为0（计划吨位<件重），则发1件
-              3. 如果基础吨位与计划吨位偏差>允许范围，则增加1件
-              4. 否则使用基础件数
-            - **偏差显示**：表格中新增"吨位偏差"列，正数为超额，负数为不足，颜色标识
-            
-            ### 每日可发规格CSV格式（优化版）
-            ```csv
-            钢厂,规格型号,长度,是否可发
-            中新,HRB400E12,9m,0  # 自动过滤
-            中新,HRB400E12,12m,1  # 正常加载
-            中新,HRB400E6,,1  # 盘螺空长度
-            中新,HRB400E10,,0  # 自动过滤
-            
-            徐钢,HRB400E8,,0  # 自动过滤
-            徐钢,HRB400E12,9m,1  # 正常加载
-            ...
-            ```
-            """)
+    
+    with st.expander("查看文件格式要求及功能说明"):
+        st.markdown("""
+        ### 新功能：优化发货件数计算
+        - **功能**：实际发货吨位与计划吨位偏差不超过设置范围（默认为1吨）
+        - **设置**：在侧边栏"发货设置"中调整"允许吨位偏差范围"
+        - **逻辑**：
+          1. 计算基础件数（向下取整）和基础吨位
+          2. 如果基础件数为0（计划吨位<件重），则发1件
+          3. 如果基础吨位与计划吨位偏差>允许范围，则增加1件
+          4. 否则使用基础件数
+        - **偏差显示**：表格中新增"吨位偏差"列，正数为超额，负数为不足，颜色标识
+        
+        ### 每日可发规格CSV格式（优化版）
+        ```csv
+        钢厂,规格型号,长度,是否可发
+        中新,HRB400E12,9m,0  # 自动过滤
+        中新,HRB400E12,12m,1  # 正常加载
+        中新,HRB400E6,,1  # 盘螺空长度
+        中新,HRB400E10,,0  # 自动过滤
+        
+        徐钢,HRB400E8,,0  # 自动过滤
+        徐钢,HRB400E12,9m,1  # 正常加载
+        ...
+        ```
+        """)
     
     # 检测显示设置变更并提示
     if st.session_state.last_show_state != st.session_state.show_only_best:
