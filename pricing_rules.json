@@ -142,7 +142,7 @@
         "base_spec": "HRB400E10",
         "additions": {
           "HRB400E8": 0,
-          "HRB400E6": 220
+          "HRB400E6": 200
         }
       }
     },
