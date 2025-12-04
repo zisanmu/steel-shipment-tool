@@ -146,7 +146,7 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '到货价(元/吨)': 0,
                     '价差（元/吨）': 0,
                     '件重(吨)': 0,
-                    '计划吨位': round(tonnage, 2),
+                    '计划吨位': round(tonnage, 3),
                     '发货件数': 0,
                     '发货吨位': 0,
                     '总利润(元)': 0,
@@ -202,9 +202,9 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                         '到货价(元/吨)': arrival_price,
                         '价差（元/吨）': price_diff,
                         '件重(吨)': round(weight, 3),
-                        '计划吨位': round(tonnage, 2),
+                        '计划吨位': round(tonnage, 3),
                         '发货件数': ship_pieces,
-                        '发货吨位': round(ship_weight, 2),
+                        '发货吨位': round(ship_weight, 3),
                         '总利润(元)': round(price_diff * tonnage, 2),
                         'is_max_diff': False,
                         'is_out_of_stock': False
@@ -223,7 +223,7 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '到货价(元/吨)': 0,
                     '价差（元/吨）': 0,
                     '件重(吨)': 0,
-                    '计划吨位': round(tonnage, 2),
+                    '计划吨位': round(tonnage, 3),
                     '发货件数': 0,
                     '发货吨位': 0,
                     '总利润(元)': 0,
@@ -570,11 +570,11 @@ def main():
             st.subheader("### 计划与发货数量汇总（仅含最优价差记录）")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("计划总吨位", f"{plan_total_weight:.2f}吨")
+                st.metric("计划总吨位", f"{plan_total_weight:.3f}吨")
             with col2:
                 st.metric("发货总件数", f"{ship_total_pieces}件")
             with col3:
-                st.metric("发货总吨位", f"{ship_total_weight:.2f}吨")
+                st.metric("发货总吨位", f"{ship_total_weight:.3f}吨")
             with col4:
                 st.metric("总利润", f"¥{total_profit:,.2f}")
             
