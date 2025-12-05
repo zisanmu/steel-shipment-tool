@@ -246,6 +246,9 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     
                     spec_num = int(''.join(filter(str.isdigit, spec))) if any(c.isdigit() for c in spec) else 0
                     
+                    # 修改总利润计算公式为：发货吨位 × 价差
+                    total_profit = round(ship_weight * price_diff, 2)
+                    
                     all_candidates.append({
                         '楼号': building,
                         '规格': spec,
@@ -259,7 +262,7 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                         '计划吨位': round(tonnage, 2),
                         '发货件数': ship_pieces,
                         '发货吨位': round(ship_weight, 3),  # 保留3位小数
-                        '总利润(元)': round(price_diff * tonnage, 2),
+                        '总利润(元)': total_profit,  # 使用新公式计算的总利润
                         'is_max_diff': False,
                         'is_out_of_stock': False,
                         'is_summary': False
@@ -590,16 +593,24 @@ def main():
                 plan_total_weight = summary_table['计划吨位'].sum()
                 ship_total_pieces = summary_table['发货件数'].sum()
                 ship_total_weight = summary_table['发货吨位'].sum()
-                total_profit = summary_table['总利润(元)'].sum()
+                
+                # 计算总利润（使用新公式：发货吨位 × 价差）
+                total_profit = (summary_table['发货吨位'] * summary_table['价差（元/吨）']).sum().round(2)
+                
+                # 计算平均利润：(各楼号各规格最高价差×发货吨位之和)÷最高价差发货总吨位
+                weighted_sum = (summary_table['价差（元/吨）'] * summary_table['发货吨位']).sum()
+                avg_profit = weighted_sum / ship_total_weight if ship_total_weight > 0 else 0
+                avg_profit = round(avg_profit, 2)
             else:
                 plan_total_weight = 0
                 ship_total_pieces = 0
                 ship_total_weight = 0
                 total_profit = 0
+                avg_profit = 0
             
-            # 显示汇总统计
+            # 显示汇总统计（增加平均利润）
             st.subheader("### 计划与发货数量汇总（仅含最优价差记录）")
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 st.metric("计划总吨位", f"{plan_total_weight:.2f}吨")
             with col2:
@@ -608,6 +619,8 @@ def main():
                 st.metric("发货总吨位", f"{ship_total_weight:.3f}吨")  # 显示3位小数
             with col4:
                 st.metric("总利润", f"¥{total_profit:,.2f}")
+            with col5:
+                st.metric("平均利润", f"¥{avg_profit:.2f}/吨")  # 新增平均利润指标
             
             # 显示无库存规格警告
             out_of_stock_count = manual_table['is_out_of_stock'].sum() if not manual_table.empty else 0
@@ -673,9 +686,9 @@ def main():
             
             # 显示统计信息
             if not valid_table.empty:
-                st.success(f"所有可发规格总利润：¥{total_profit:,.2f}")
+                st.success(f"所有可发规格总利润：¥{total_profit:,.2f}，平均利润：¥{avg_profit:.2f}/吨")
             else:
-                st.warning("没有可发规格的有效价差记录，无法计算总利润")
+                st.warning("没有可发规格的有效价差记录，无法计算总利润和平均利润")
             
     else:
         st.info("请上传所有必要的CSV文件（每日基价、可发规格、发货计划）")
@@ -685,7 +698,9 @@ def main():
             1. **规格汇总行**：Excel文件最上方显示每日可发规格的最高价差记录（楼号为空）
             2. **高亮显示**：规格汇总行自动以黄色高亮
             3. **发货吨位**：已调整为保留3位小数
-            4. **双格式下载**：同时支持Excel和CSV格式导出
+            4. **利润计算**：总利润 = 发货吨位 × 价差
+            5. **新增指标**：汇总统计中增加平均利润（加权平均）
+            6. **双格式下载**：同时支持Excel和CSV格式导出
             
             ### 每日可发规格CSV格式示例
             ```csv
