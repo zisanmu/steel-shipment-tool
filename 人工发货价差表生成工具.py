@@ -121,7 +121,7 @@ def get_weight(steel_mill, spec, length, weight_dict):
 
 def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, pricing_rules, base_prices_dict, 
                                  enable_12m_addition=True, tonnage_tolerance=1.0):
-    """生成人工发货用价差表，包含优化的件数计算逻辑"""
+    """生成人工发货价差表，包含优化的件数计算逻辑和规格汇总行"""
     all_candidates = []
     available_specs_set = {mill: {spec: set(lengths) for spec, lengths in specs.items()} 
                           for mill, specs in available_specs.items()}
@@ -131,6 +131,59 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
     for mill_specs in available_specs.values():
         all_available_specs.update(mill_specs.keys())
     
+    # 1. 生成规格汇总行（楼号为空）
+    summary_rows = []
+    for spec in all_available_specs:
+        max_price_diff = -1
+        best_record = None
+        
+        # 查找该规格的最高价差记录
+        for steel_mill in available_specs:
+            if spec not in available_specs[steel_mill]:
+                continue
+                
+            steel_type = '盘螺' if spec in ['HRB400E6', 'HRB400E8', 'HRB400E10'] else '螺纹钢'
+            if steel_mill not in base_prices_dict or steel_type not in base_prices_dict[steel_mill]:
+                continue
+                
+            lengths = available_specs_set[steel_mill].get(spec, set())
+            base_prices = base_prices_dict[steel_mill][steel_type]
+            base_net_price = base_prices.get('网价', 0)
+            base_arrival_price = base_prices.get('到货价', 0)
+            
+            for length in lengths:
+                price_diff, net_price, arrival_price = calculate_price_diff(
+                    steel_mill, steel_type, spec, length, base_net_price, base_arrival_price,
+                    pricing_rules, enable_12m_addition=enable_12m_addition
+                )
+                
+                if price_diff > max_price_diff:
+                    max_price_diff = price_diff
+                    weight = get_weight(steel_mill, spec, length, weight_dict) or 0
+                    
+                    best_record = {
+                        '楼号': '',  # 楼号为空
+                        '规格': spec,
+                        '规格排序': -1,  # 确保汇总行排在最前面
+                        '长度': length,
+                        '钢厂': steel_mill,
+                        '网价(元/吨)': net_price,
+                        '到货价(元/吨)': arrival_price,
+                        '价差（元/吨）': price_diff,
+                        '件重(吨)': round(weight, 3) if weight else 0,
+                        '计划吨位': 0,
+                        '发货件数': 0,
+                        '发货吨位': 0,
+                        '总利润(元)': 0,
+                        'is_max_diff': True,  # 标记为最高价差行
+                        'is_out_of_stock': False,
+                        'is_summary': True  # 标记为汇总行
+                    }
+        
+        if best_record:
+            summary_rows.append(best_record)
+    
+    # 2. 生成原有数据行
     for building, specs in shipment_plan.items():
         for spec, tonnage in specs.items():
             # 检查该规格是否有可发钢厂
@@ -146,12 +199,13 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '到货价(元/吨)': 0,
                     '价差（元/吨）': 0,
                     '件重(吨)': 0,
-                    '计划吨位': round(tonnage, 3),
+                    '计划吨位': round(tonnage, 2),
                     '发货件数': 0,
                     '发货吨位': 0,
                     '总利润(元)': 0,
                     'is_max_diff': False,
-                    'is_out_of_stock': True  # 添加无库存标记
+                    'is_out_of_stock': True,  # 添加无库存标记
+                    'is_summary': False
                 })
                 continue
             
@@ -202,12 +256,13 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                         '到货价(元/吨)': arrival_price,
                         '价差（元/吨）': price_diff,
                         '件重(吨)': round(weight, 3),
-                        '计划吨位': round(tonnage, 3),
+                        '计划吨位': round(tonnage, 2),
                         '发货件数': ship_pieces,
-                        '发货吨位': round(ship_weight, 3),
+                        '发货吨位': round(ship_weight, 3),  # 保留3位小数
                         '总利润(元)': round(price_diff * tonnage, 2),
                         'is_max_diff': False,
-                        'is_out_of_stock': False
+                        'is_out_of_stock': False,
+                        'is_summary': False
                     })
                     valid_records += 1
             
@@ -223,32 +278,36 @@ def generate_manual_pricing_table(shipment_plan, available_specs, weight_dict, p
                     '到货价(元/吨)': 0,
                     '价差（元/吨）': 0,
                     '件重(吨)': 0,
-                    '计划吨位': round(tonnage, 3),
+                    '计划吨位': round(tonnage, 2),
                     '发货件数': 0,
                     '发货吨位': 0,
                     '总利润(元)': 0,
                     'is_max_diff': False,
-                    'is_out_of_stock': True  # 视为无库存
+                    'is_out_of_stock': True,  # 视为无库存
+                    'is_summary': False
                 })
     
-    if not all_candidates:
+    # 合并汇总行和数据行
+    all_rows = summary_rows + all_candidates
+    
+    if not all_rows:
         return pd.DataFrame()
     
-    df = pd.DataFrame(all_candidates)
+    df = pd.DataFrame(all_rows)
     
-    # 按楼号升序，同一楼号内按规格升序，相同规格内按价差降序排序
+    # 排序：汇总行（规格排序=-1）排在最前面，然后按楼号、规格排序、价差排序
     df = df.sort_values(
-        ['楼号', '规格排序', '价差（元/吨）'], 
+        ['规格排序', '楼号', '价差（元/吨）'], 
         ascending=[True, True, False]
     )
     
-    # 按楼号和规格分组，标记每组中价差最高的行
-    df['is_max_diff'] = df.groupby(['楼号', '规格'])['价差（元/吨）'].transform(lambda x: x == x.max())
+    # 按楼号和规格分组，标记每组中价差最高的行（仅用于数据处理）
+    df['is_max_diff'] = df.groupby(['楼号', '规格'])['价差（元/吨）'].transform(lambda x: x == x.max() if not x.empty else False)
     
     return df
 
 def format_manual_table(df):
-    """格式化人工发货价差表，包含吨位偏差列的特殊显示"""
+    """格式化人工发货价差表，移除高亮显示"""
     if df.empty:
         return df
     
@@ -256,35 +315,10 @@ def format_manual_table(df):
     display_df = df[['楼号', '规格', '长度', '钢厂', '网价(元/吨)', '到货价(元/吨)', '价差（元/吨）',
                     '件重(吨)', '计划吨位', '发货件数', '发货吨位', '总利润(元)']]
     
-    # 创建样式器
+    # 创建样式器（仅保留基础格式）
     styler = display_df.style
     
-    # 高亮每个楼号-规格组中价差最高的行
-    max_diff_mask = df['is_max_diff']
-    styler = styler.apply(
-        lambda row: ['background-color: #81c784' if max_diff_mask[row.name] else '' for _ in row], 
-        axis=1
-    )
-    
-    # 高亮无库存记录
-    if 'is_out_of_stock' in df.columns:
-        out_of_stock_mask = df['is_out_of_stock']
-        styler = styler.apply(
-            lambda row: ['background-color: #ffcdd2; color: #d32f2f' if out_of_stock_mask[row.name] else '' for _ in row], 
-            axis=1
-        )
-    
-    # 添加楼号分组分隔线
-    楼号_list = df['楼号'].unique()
-    for i, 楼号 in enumerate(楼号_list):
-        if i > 0:
-            start_idx = df[df['楼号'] == 楼号].index.min()
-            styler = styler.set_properties(
-                subset=(start_idx, slice(None)),
-                **{'border-top': '2px solid #000000'}
-            )
-    
-    # 其他格式化
+    # 基础格式化
     styler = styler.set_properties(**{'text-align': 'center'})
     styler = styler.set_table_styles([
         {'selector': 'th', 'props': [('background-color', '#e3f2fd'), ('font-weight', 'bold'), ('text-align', 'center')]}
@@ -293,36 +327,33 @@ def format_manual_table(df):
     return styler
 
 def format_excel_with_highlight(df):
-    """生成格式化的Excel文件，并高亮每个规格中价差最高的行"""
+    """生成格式化的Excel文件，为规格汇总行添加高亮显示"""
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # 将数据写入Excel（不包含is_max_diff等辅助列）
-        export_df = df[[col for col in df.columns if col not in ['规格排序', 'is_max_diff', 'is_out_of_stock']]]
+        # 将数据写入Excel（不包含辅助列）
+        export_df = df[[col for col in df.columns if col not in ['规格排序', 'is_max_diff', 'is_out_of_stock', 'is_summary']]]
         export_df.to_excel(writer, index=False, sheet_name='发货依据')
         ws = writer.sheets['发货依据']
         
-        # 设置表头样式（加粗、居中、蓝色背景）
-        header_fill = PatternFill(start_color='00CCFFCC', end_color='00CCFFCC', fill_type='solid')
+        # 设置表头样式
         header_font = Font(bold=True, size=11)
         header_alignment = Alignment(horizontal='center', vertical='center')
         
         for cell in ws[1]:  # 表头在第2行（索引1）
             cell.font = header_font
             cell.alignment = header_alignment
-            cell.fill = header_fill
         
-        # 找出每个规格中价差最高的行（使用is_max_diff列标记）
-        if 'is_max_diff' in df.columns:
-            max_diff_indices = df[df['is_max_diff']].index + 2  # +2是因为Excel行号从1开始且表头占1行
-            
-            # 设置高亮样式（黄色背景）
-            highlight_fill = PatternFill(start_color='00FFFF00', end_color='00FFFF00', fill_type='solid')
-            
-            # 应用高亮到最高价差行
-            for row_num in max_diff_indices:
-                for col in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_num, column=col)
-                    cell.fill = highlight_fill
+        # 高亮规格汇总行（楼号为空且is_summary=True）
+        summary_mask = df['is_summary']
+        summary_indices = df[summary_mask].index + 2  # +2是因为Excel行号从1开始且表头占1行
+        
+        # 设置高亮样式（黄色背景）
+        highlight_fill = PatternFill(start_color='00FFFF00', end_color='00FFFF00', fill_type='solid')
+        
+        for row_num in summary_indices:
+            for col in range(1, ws.max_column + 1):
+                cell = ws.cell(row=row_num, column=col)
+                cell.fill = highlight_fill
         
         # 调整列宽
         column_widths = {
@@ -435,7 +466,7 @@ def load_shipment_plan(uploaded_file):
 def main():
     st.set_page_config(page_title="钢筋发货智能体", layout="wide")
     st.title("钢筋发货智能体")
-    st.markdown("### 按楼号分组，同一楼号内按规格排序，相同规格价差从高到低")
+    st.markdown("### 按楼号分组，同一楼号内按规格排序，相同规格内按价差降序排序")
     
     # 初始化session_state存储设置
     if 'enable_12m_addition' not in st.session_state:
@@ -506,10 +537,10 @@ def main():
         st.subheader("排序说明")
         st.info("""
         当前排序方式：
-        1. 按**楼号**升序排列
-        2. 同一楼号内按**规格**升序排列（按规格中的数字大小）
-        3. 相同规格内按**价差**降序排列
-        4. 每个楼号-规格组中价差最高的行标为**绿色**
+        1. 规格汇总行（楼号为空）排在最前面
+        2. 按**楼号**升序排列
+        3. 同一楼号内按**规格**升序排列（按规格中的数字大小）
+        4. 相同规格内按**价差**降序排列
         """)
     
     # 检测设置变更并提示用户刷新
@@ -570,18 +601,18 @@ def main():
             st.subheader("### 计划与发货数量汇总（仅含最优价差记录）")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("计划总吨位", f"{plan_total_weight:.3f}吨")
+                st.metric("计划总吨位", f"{plan_total_weight:.2f}吨")
             with col2:
                 st.metric("发货总件数", f"{ship_total_pieces}件")
             with col3:
-                st.metric("发货总吨位", f"{ship_total_weight:.3f}吨")
+                st.metric("发货总吨位", f"{ship_total_weight:.3f}吨")  # 显示3位小数
             with col4:
                 st.metric("总利润", f"¥{total_profit:,.2f}")
             
             # 显示无库存规格警告
-            out_of_stock_count = manual_table['is_out_of_stock'].sum()
+            out_of_stock_count = manual_table['is_out_of_stock'].sum() if not manual_table.empty else 0
             if out_of_stock_count > 0:
-                st.warning(f"注意：有 {out_of_stock_count} 个规格无库存或无有效价差，已在表格中标记为红色")
+                st.warning(f"注意：有 {out_of_stock_count} 个规格无库存或无有效价差")
             
             # 根据用户选择决定是否只显示最高价差记录
             if st.session_state.show_only_best and not manual_table.empty:
@@ -601,7 +632,7 @@ def main():
                 
                 # 重新排序以保持一致性
                 display_table = display_table.sort_values(
-                    ['楼号', '规格排序', '价差（元/吨）'], 
+                    ['规格排序', '楼号', '价差（元/吨）'], 
                     ascending=[True, True, False]
                 )
             else:
@@ -615,10 +646,10 @@ def main():
             # 准备导出数据
             export_df = display_table.copy()
             
-            # 下载功能 - Excel（带高亮）
+            # 下载功能 - Excel（带规格汇总行高亮）
             excel_data = format_excel_with_highlight(export_df)
             st.download_button(
-                label="📊 下载Excel结果（高亮最高价差）",
+                label="📊 下载Excel结果",
                 data=excel_data,
                 file_name=f"{current_date}_发货依据.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -627,9 +658,9 @@ def main():
             
             # 下载功能 - CSV
             if st.session_state.show_only_best and not manual_table.empty:
-                download_df = display_table.drop(columns=['规格排序', 'is_max_diff', 'is_out_of_stock'])
+                download_df = display_table.drop(columns=['规格排序', 'is_max_diff', 'is_out_of_stock', 'is_summary'])
             else:
-                download_df = manual_table.drop(columns=['规格排序', 'is_max_diff', 'is_out_of_stock'])
+                download_df = manual_table.drop(columns=['规格排序', 'is_max_diff', 'is_out_of_stock', 'is_summary'])
             
             csv = download_df.to_csv(index=False, encoding='utf-8-sig')
             st.download_button(
@@ -651,10 +682,10 @@ def main():
         with st.expander("查看文件格式要求及功能说明"):
             st.markdown("""
             ### 功能亮点
-            1. **Excel导出带高亮**：自动高亮每个规格中价差最高的行（黄色背景）
-            2. **双格式下载**：同时支持Excel和CSV格式导出
-            3. **智能件数计算**：根据允许偏差范围自动计算最优发货件数
-            4. **多条件筛选**：可选择仅显示最高价差记录，简化决策
+            1. **规格汇总行**：Excel文件最上方显示每日可发规格的最高价差记录（楼号为空）
+            2. **高亮显示**：规格汇总行自动以黄色高亮
+            3. **发货吨位**：已调整为保留3位小数
+            4. **双格式下载**：同时支持Excel和CSV格式导出
             
             ### 每日可发规格CSV格式示例
             ```csv
@@ -662,10 +693,6 @@ def main():
             中新,HRB400E12,9m,0  # 自动过滤
             中新,HRB400E12,12m,1  # 正常加载
             中新,HRB400E6,,1  # 盘螺空长度
-            中新,HRB400E10,,0  # 自动过滤
-            
-            徐钢,HRB400E8,,0  # 自动过滤
-            徐钢,HRB400E12,9m,1  # 正常加载
             ...
             ```
             """)
